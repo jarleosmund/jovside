@@ -1,3 +1,326 @@
-jepp
-joda
-hmmm
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game - Vi Keys</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            font-size: 2em;
+            color: #4CAF50;
+        }
+
+        #gameCanvas {
+            border: 3px solid #4CAF50;
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+        }
+
+        #score {
+            margin-top: 20px;
+            font-size: 1.5em;
+            color: #4CAF50;
+        }
+
+        #instructions {
+            margin-top: 10px;
+            text-align: center;
+            color: #888;
+        }
+
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border: 3px solid #ff4444;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        #gameOver h2 {
+            color: #ff4444;
+            margin-bottom: 20px;
+        }
+
+        #gameOver button {
+            margin-top: 20px;
+            padding: 10px 30px;
+            font-size: 1.2em;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+
+        #gameOver button:hover {
+            background: #45a049;
+        }
+
+        #speedControl {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: #4CAF50;
+        }
+
+        #speedSlider {
+            width: 200px;
+            height: 5px;
+            background: #333;
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        #speedSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4CAF50;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        #speedSlider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4CAF50;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Snake Game</h1>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div id="score">Score: 0</div>
+    <div id="speedControl">
+        <label>Speed:</label>
+        <input type="range" id="speedSlider" min="1" max="5" value="3" step="1">
+        <span id="speedValue">Medium</span>
+    </div>
+    <div id="instructions">
+        Use Vi keys: H (left) | J (down) | K (up) | L (right)<br>
+        Press Space to start
+    </div>
+
+    <div id="gameOver">
+        <h2>Game Over!</h2>
+        <p id="finalScore"></p>
+        <button onclick="restartGame()">Play Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+
+        let snake = [{ x: 10, y: 10 }];
+        let velocityX = 0;
+        let velocityY = 0;
+        let food = { x: 15, y: 15 };
+        let score = 0;
+        let gameRunning = false;
+        let gameLoop;
+        let gameSpeed = 150;
+
+        function drawGame() {
+            // Clear canvas
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= tileCount; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * gridSize, 0);
+                ctx.lineTo(i * gridSize, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * gridSize);
+                ctx.lineTo(canvas.width, i * gridSize);
+                ctx.stroke();
+            }
+
+            // Move snake
+            if (gameRunning) {
+                const head = { x: snake[0].x + velocityX, y: snake[0].y + velocityY };
+
+                // Check wall collision
+                if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                    endGame();
+                    return;
+                }
+
+                // Check self collision
+                for (let segment of snake) {
+                    if (head.x === segment.x && head.y === segment.y) {
+                        endGame();
+                        return;
+                    }
+                }
+
+                snake.unshift(head);
+
+                // Check food collision
+                if (head.x === food.x && head.y === food.y) {
+                    score++;
+                    scoreElement.textContent = 'Score: ' + score;
+                    placeFood();
+                } else {
+                    snake.pop();
+                }
+            }
+
+            // Draw snake
+            snake.forEach((segment, index) => {
+                ctx.fillStyle = index === 0 ? '#4CAF50' : '#45a049';
+                ctx.fillRect(
+                    segment.x * gridSize + 1,
+                    segment.y * gridSize + 1,
+                    gridSize - 2,
+                    gridSize - 2
+                );
+            });
+
+            // Draw food
+            ctx.fillStyle = '#ff4444';
+            ctx.beginPath();
+            ctx.arc(
+                food.x * gridSize + gridSize / 2,
+                food.y * gridSize + gridSize / 2,
+                gridSize / 2 - 2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        function placeFood() {
+            do {
+                food.x = Math.floor(Math.random() * tileCount);
+                food.y = Math.floor(Math.random() * tileCount);
+            } while (snake.some(segment => segment.x === food.x && segment.y === food.y));
+        }
+
+        function endGame() {
+            gameRunning = false;
+            clearInterval(gameLoop);
+            finalScoreElement.textContent = 'Final Score: ' + score;
+            gameOverElement.style.display = 'block';
+        }
+
+        function restartGame() {
+            snake = [{ x: 10, y: 10 }];
+            velocityX = 0;
+            velocityY = 0;
+            score = 0;
+            scoreElement.textContent = 'Score: 0';
+            gameOverElement.style.display = 'none';
+            placeFood();
+            gameRunning = false;
+        }
+
+        function startGame() {
+            if (!gameRunning && velocityX === 0 && velocityY === 0) {
+                return; // Need to press a direction first
+            }
+            if (!gameRunning) {
+                gameRunning = true;
+                gameLoop = setInterval(drawGame, gameSpeed);
+            }
+        }
+
+        function updateSpeed() {
+            const speedLevel = parseInt(speedSlider.value);
+            const speedMap = {
+                1: { delay: 50, label: 'Very Fast' },
+                2: { delay: 100, label: 'Fast' },
+                3: { delay: 150, label: 'Medium' },
+                4: { delay: 250, label: 'Slow' },
+                5: { delay: 400, label: 'Very Slow' }
+            };
+
+            gameSpeed = speedMap[speedLevel].delay;
+            speedValue.textContent = speedMap[speedLevel].label;
+
+            // Restart game loop if game is running
+            if (gameRunning) {
+                clearInterval(gameLoop);
+                gameLoop = setInterval(drawGame, gameSpeed);
+            }
+        }
+
+        // Speed slider event
+        speedSlider.addEventListener('input', updateSpeed);
+
+        // Vi key controls
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+
+            // Start game with space
+            if (key === ' ') {
+                e.preventDefault();
+                startGame();
+                return;
+            }
+
+            // Vi keys: h (left), j (down), k (up), l (right)
+            if (key === 'h' && velocityX !== 1) {
+                velocityX = -1;
+                velocityY = 0;
+                if (!gameRunning) startGame();
+            } else if (key === 'l' && velocityX !== -1) {
+                velocityX = 1;
+                velocityY = 0;
+                if (!gameRunning) startGame();
+            } else if (key === 'k' && velocityY !== 1) {
+                velocityX = 0;
+                velocityY = -1;
+                if (!gameRunning) startGame();
+            } else if (key === 'j' && velocityY !== -1) {
+                velocityX = 0;
+                velocityY = 1;
+                if (!gameRunning) startGame();
+            }
+        });
+
+        // Initial draw
+        placeFood();
+        drawGame();
+    </script>
+</body>
+</html>
